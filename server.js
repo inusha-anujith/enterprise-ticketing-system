@@ -3,8 +3,11 @@ const express = require('express');
 const cron = require('node-cron');
 require('dotenv').config(); 
 
+const cors = require('cors'); // <--- ADD THIS
 const app = express();
-app.use(express.json()); 
+
+app.use(cors()); // <--- ADD THIS (Allows port 5173 to talk to port 3000)
+app.use(express.json());
 
 // 2. Initialize Database Connection
 const db = require('./config/db');

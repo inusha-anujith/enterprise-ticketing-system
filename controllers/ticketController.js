@@ -48,8 +48,29 @@ const getAllTickets = (request, response) => {
     });
 };
 
-// Export BOTH functions
+// --- FUNCTION 3: Resolve a Ticket ---
+// We use a PUT request to update existing data
+const resolveTicket = (request, response) => {
+    // We grab the specific ticket ID from the URL (e.g., /api/tickets/5/resolve)
+    const ticketId = request.params.id;
+
+    // The SQL command to update ONLY the status of this specific ticket
+    const updateQuery = "UPDATE Tickets SET status = 'Resolved' WHERE id = ?";
+
+    db.query(updateQuery, [ticketId], (err, result) => {
+        if (err) {
+            console.error("Error resolving ticket:", err.message);
+            return response.status(500).json({ error: "Failed to resolve ticket" });
+        }
+        
+        // Let the frontend know we succeeded!
+        response.status(200).json({ message: "Ticket successfully resolved!" });
+    });
+};
+
+// DON'T FORGET TO EXPORT ALL THREE NOW!
 module.exports = {
     createTicket,
-    getAllTickets
+    getAllTickets,
+    resolveTicket // <-- Add this new one here
 };
