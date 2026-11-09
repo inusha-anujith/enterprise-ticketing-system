@@ -1,43 +1,27 @@
-// 1. Import Core Tools
-const express = require('express');
-const cron = require('node-cron');
-require('dotenv').config(); 
-
-const cors = require('cors'); // <--- ADD THIS
-const app = express();
-
-app.use(cors()); // <--- ADD THIS (Allows port 5173 to talk to port 3000)
-app.use(express.json());
-
-// 2. Initialize Database Connection
+// server.js
+// Entry point: checks the database, starts the HTTP server and the SLA engine.
+const app = require('./app');
+const config = require('./config');
 const db = require('./config/db');
+const { startSlaEngine } = require('./services/slaService');
 
-// 3. Import Our Traffic Cops (Routes)
-const userRoutes = require('./routes/userRoutes');
-const ticketRoutes = require('./routes/ticketRoutes');
+const start = async () => {
+    try {
+        await db.query('SELECT 1');
+        console.log('✅ Connected to MySQL');
+    } catch (err) {
+        // Fail fast: there's no point running an API that can't reach its database
+        console.error('❌ Could not connect to MySQL:', err.message);
+        process.exit(1);
+    }
 
-// 4. Tell Express Where to Send the Traffic
-// If a URL starts with '/api/users', send it to the User Router
-app.use('/api/users', userRoutes);
-// If a URL starts with '/api/tickets', send it to the Ticket Router
-app.use('/api/tickets', ticketRoutes);
-
-// --- THE SLA ENGINE (Background Worker) ---
-cron.schedule('* * * * *', () => {
-    console.log("⚙️ [SLA Engine] Scanning for neglected tickets...");
-    const slaQuery = `
-        UPDATE Tickets SET priority = 'Urgent' 
-        WHERE status = 'Open' AND created_at < NOW() - INTERVAL 2 MINUTE AND priority != 'Urgent'
-    `;
-    db.query(slaQuery, (err, result) => {
-        if (err) return console.error("SLA Engine Error:", err.message);
-        if (result.affectedRows > 0) {
-            console.log(`🚨 [SLA BREACH DETECTED] ${result.affectedRows} ticket(s) automatically upgraded to URGENT!`);
-        }
+    app.listen(config.port, () => {
+        console.log(`🚀 API running on http://localhost:${config.port}`);
     });
-});
 
-// 5. Start the Server
-app.listen(3000, () => {
-    console.log("🚀 Server is running on http://localhost:3000");
-});
+    if (config.sla.enabled) {
+        startSlaEngine();
+    }
+};
+
+start();

@@ -1,29 +1,30 @@
 // controllers/userController.js
-
-// 1. We need the database connection to talk to MySQL
+const bcrypt = require('bcryptjs');
 const db = require('../config/db');
+const HttpError = require('../utils/httpError');
 
-// 2. We take the exact logic from server.js and wrap it in a function called 'createUser'
-const createUser = (request, response) => {
-    const { name, email, password_hash, role } = request.body;
+// POST /api/users
+// The client now sends a plain `password`, and the SERVER hashes it.
+// (Before, the client sent `password_hash`, which meant passwords were stored as typed.)
+const createUser = async (req, res) => {
+    const { name, email, password, role = 'customer' } = req.body;
 
-    const sqlQuery = "INSERT INTO Users (name, email, password_hash, role) VALUES (?, ?, ?, ?)";
-    const values = [name, email, password_hash, role];
+    if (!name?.trim() || !email?.trim() || !password || password.length < 8) {
+        throw new HttpError(400, 'name, email and a password of at least 8 characters are required');
+    }
 
-    db.query(sqlQuery, values, (err, result) => {
-        if (err) {
-            console.error("Database error:", err.message);
-            return response.status(500).json({ error: "Failed to create user" });
-        }
-        
-        response.status(201).json({ 
-            message: "User created successfully!", 
-            userId: result.insertId 
-        });
-    });
+    const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [email.trim().toLowerCase()]);
+    if (existing.length > 0) {
+        throw new HttpError(409, 'An account with this email already exists');
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const [result] = await db.query(
+        'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
+        [name.trim(), email.trim().toLowerCase(), passwordHash, role],
+    );
+
+    res.status(201).json({ id: result.insertId, name: name.trim(), email: email.trim().toLowerCase(), role });
 };
 
-// 3. We export this function so the rest of the app can use it
-module.exports = {
-    createUser
-};
+module.exports = { createUser };

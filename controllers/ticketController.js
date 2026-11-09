@@ -1,76 +1,64 @@
 // controllers/ticketController.js
-
 const db = require('../config/db');
+const HttpError = require('../utils/httpError');
+const { calculateDueDate } = require('../services/slaService');
 
-// --- FUNCTION 1: Create a Ticket ---
-const createTicket = (request, response) => {
-    const { customer_id, subject, description } = request.body;
+const PRIORITIES = ['Low', 'Normal', 'High', 'Urgent'];
 
-    const insertTicketQuery = "INSERT INTO Tickets (customer_id, subject, description) VALUES (?, ?, ?)";
-    const ticketValues = [customer_id, subject, description];
+// POST /api/tickets
+const createTicket = async (req, res) => {
+    // customer_id still comes from the request body for now.
+    // Phase 3 (login) will take it from the logged-in user instead.
+    const { customer_id, subject, description, priority = 'Normal' } = req.body;
 
-    db.query(insertTicketQuery, ticketValues, (err, ticketResult) => {
-        if (err) {
-            console.error("Error creating ticket:", err.message);
-            return response.status(500).json({ error: "Failed to create ticket" });
-        }
+    if (!customer_id || !subject?.trim() || !description?.trim()) {
+        throw new HttpError(400, 'customer_id, subject and description are required');
+    }
+    if (!PRIORITIES.includes(priority)) {
+        throw new HttpError(400, `priority must be one of: ${PRIORITIES.join(', ')}`);
+    }
 
-        const newTicketId = ticketResult.insertId;
+    const dueAt = calculateDueDate(priority);
+    const [result] = await db.query(
+        `INSERT INTO tickets (customer_id, subject, description, priority, sla_due_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [customer_id, subject.trim(), description.trim(), priority, dueAt],
+    );
 
-        const insertLogQuery = "INSERT INTO AuditLogs (ticket_id, action_performed, performed_by_user_id) VALUES (?, ?, ?)";
-        const logValues = [newTicketId, "Ticket Created", customer_id];
+    await db.query(
+        'INSERT INTO audit_logs (ticket_id, action_performed, performed_by_user_id) VALUES (?, ?, ?)',
+        [result.insertId, 'Ticket created', customer_id],
+    );
 
-        db.query(insertLogQuery, logValues, (logErr, logResult) => {
-            if (logErr) {
-                console.error("Ticket created, but failed to save Audit Log:", logErr.message);
-            }
-
-            response.status(201).json({
-                message: "Ticket submitted successfully!",
-                ticketId: newTicketId,
-                status: "Open"
-            });
-        });
-    });
+    res.status(201).json({ id: result.insertId, status: 'Open', priority, sla_due_at: dueAt });
 };
 
-// --- FUNCTION 2: Get All Tickets ---
-const getAllTickets = (request, response) => {
-    const sqlQuery = "SELECT * FROM Tickets ORDER BY created_at DESC";
-
-    db.query(sqlQuery, (err, results) => {
-        if (err) {
-            console.error("Error fetching tickets:", err.message);
-            return response.status(500).json({ error: "Failed to fetch tickets" });
-        }
-        
-        response.status(200).json(results);
-    });
+// GET /api/tickets
+const getAllTickets = async (req, res) => {
+    const [tickets] = await db.query('SELECT * FROM tickets ORDER BY created_at DESC');
+    res.json(tickets);
 };
 
-// --- FUNCTION 3: Resolve a Ticket ---
-// We use a PUT request to update existing data
-const resolveTicket = (request, response) => {
-    // We grab the specific ticket ID from the URL (e.g., /api/tickets/5/resolve)
-    const ticketId = request.params.id;
+// PUT /api/tickets/:id/resolve
+const resolveTicket = async (req, res) => {
+    const ticketId = Number(req.params.id);
 
-    // The SQL command to update ONLY the status of this specific ticket
-    const updateQuery = "UPDATE Tickets SET status = 'Resolved' WHERE id = ?";
+    const [result] = await db.query(
+        "UPDATE tickets SET status = 'Resolved', resolved_at = UTC_TIMESTAMP() WHERE id = ? AND status != 'Resolved'",
+        [ticketId],
+    );
 
-    db.query(updateQuery, [ticketId], (err, result) => {
-        if (err) {
-            console.error("Error resolving ticket:", err.message);
-            return response.status(500).json({ error: "Failed to resolve ticket" });
-        }
-        
-        // Let the frontend know we succeeded!
-        response.status(200).json({ message: "Ticket successfully resolved!" });
-    });
+    // affectedRows is 0 when no ticket has this id (or it was already resolved)
+    if (result.affectedRows === 0) {
+        throw new HttpError(404, 'Ticket not found or already resolved');
+    }
+
+    await db.query(
+        'INSERT INTO audit_logs (ticket_id, action_performed, performed_by_user_id) VALUES (?, ?, ?)',
+        [ticketId, 'Status changed to Resolved', null],
+    );
+
+    res.json({ message: 'Ticket resolved' });
 };
 
-// DON'T FORGET TO EXPORT ALL THREE NOW!
-module.exports = {
-    createTicket,
-    getAllTickets,
-    resolveTicket // <-- Add this new one here
-};
+module.exports = { createTicket, getAllTickets, resolveTicket };
