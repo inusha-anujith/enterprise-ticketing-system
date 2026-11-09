@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const config = require('./config');
 const db = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const ticketRoutes = require('./routes/ticketRoutes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
@@ -21,6 +22,7 @@ app.get('/api/health', async (req, res) => {
     res.json({ status: 'ok', database: 'connected', time: new Date().toISOString() });
 });
 
+app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tickets', ticketRoutes);
 

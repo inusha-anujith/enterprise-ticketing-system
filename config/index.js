@@ -25,6 +25,11 @@ const config = {
         ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : undefined,
     },
 
+    jwt: {
+        secret: process.env.JWT_SECRET,
+        expiresIn: process.env.JWT_EXPIRES_IN || '8h',
+    },
+
     // How many minutes a ticket can wait before it breaches its SLA, by priority
     sla: {
         minutes: {
@@ -37,5 +42,17 @@ const config = {
         enabled: process.env.SLA_ENGINE_ENABLED !== 'false',
     },
 };
+
+// The JWT secret signs every login token. If it leaks, anyone can forge a token,
+// so production must set a long random value. Locally we fall back to a dev value.
+if (!config.jwt.secret) {
+    if (config.env === 'production') {
+        throw new Error('JWT_SECRET must be set in production');
+    }
+    config.jwt.secret = 'dev-only-secret-change-me';
+    if (config.env !== 'test') {
+        console.warn('⚠️  JWT_SECRET is not set. Using an insecure development secret.');
+    }
+}
 
 module.exports = config;
