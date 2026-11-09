@@ -1,5 +1,6 @@
 // database/seed.js
 // Fills the database with demo users and tickets.  Usage: npm run db:seed
+// The tests also call seed() so they always start from the same known data.
 // Run `npm run db:setup` first. This deletes existing data.
 const bcrypt = require('bcryptjs');
 const db = require('../config/db');
@@ -97,13 +98,21 @@ const seed = async () => {
         );
     }
 
-    console.log(`✅ Seeded ${users.length} users and ${tickets.length} tickets`);
-    console.log(`   Every demo account uses the password: ${DEMO_PASSWORD}`);
+    return { users: users.length, tickets: tickets.length };
 };
 
-seed()
-    .catch((err) => {
-        console.error('❌ Seeding failed:', err.message);
-        process.exitCode = 1;
-    })
-    .finally(() => db.end());
+// Only run when started from the command line (node database/seed.js), not when imported by tests
+if (require.main === module) {
+    seed()
+        .then((counts) => {
+            console.log(`✅ Seeded ${counts.users} users and ${counts.tickets} tickets`);
+            console.log(`   Every demo account uses the password: ${DEMO_PASSWORD}`);
+        })
+        .catch((err) => {
+            console.error('❌ Seeding failed:', err.message);
+            process.exitCode = 1;
+        })
+        .finally(() => db.end());
+}
+
+module.exports = { seed, DEMO_PASSWORD };

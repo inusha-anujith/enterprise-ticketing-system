@@ -8,7 +8,14 @@
     "dev": "nodemon server.js",
     "db:setup": "node database/setup.js",
     "db:seed": "node database/seed.js",
-    "db:reset": "npm run db:setup && npm run db:seed"
+    "db:reset": "npm run db:setup && npm run db:seed",
+    "test": "NODE_ENV=test jest --runInBand"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/tests"
+    ]
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -20,6 +27,8 @@
     "node-cron": "^4.2.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "jest": "^30.5.2",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.3.2"
   }
 }

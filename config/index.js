@@ -20,7 +20,10 @@ const config = {
         port: toInt(process.env.DB_PORT, 3306),
         user: process.env.DB_USER || 'root',
         password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'apexdesk',
+        // Tests run against their own database, because they wipe it before every test file
+        database: process.env.NODE_ENV === 'test'
+            ? process.env.TEST_DB_NAME || 'apexdesk_test'
+            : process.env.DB_NAME || 'apexdesk',
         // Most cloud MySQL providers require SSL
         ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : undefined,
     },
