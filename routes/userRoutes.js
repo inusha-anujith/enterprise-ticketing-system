@@ -1,11 +1,13 @@
 // routes/userRoutes.js
 const express = require('express');
 const router = express.Router();
-
-// Import the specific "brain" for users
 const userController = require('../controllers/userController');
+const { authenticate, authorize } = require('../middleware/auth');
 
-// When a POST request hits this router, trigger the createUser function
-router.post('/', userController.createUser);
+// Every route in this file needs a logged-in user
+router.use(authenticate);
+
+router.get('/agents', authorize('agent', 'admin'), userController.listAgents);
+router.post('/', authorize('admin'), userController.createStaffUser);
 
 module.exports = router;

@@ -1,19 +1,22 @@
 // routes/ticketRoutes.js
 const express = require('express');
 const router = express.Router();
-
-// Import the specific "brain" for tickets
 const ticketController = require('../controllers/ticketController');
+const { authenticate, authorize } = require('../middleware/auth');
 
-// Map the HTTP methods to the correct controller functions
-router.post('/', ticketController.createTicket);
+const staffOnly = authorize('agent', 'admin');
+
+// Every ticket route needs a logged-in user
+router.use(authenticate);
+
+// /stats must be registered BEFORE /:id, otherwise Express would treat "stats" as an id
+router.get('/stats', staffOnly, ticketController.getStats);
+
 router.get('/', ticketController.getAllTickets);
-
-// Map the HTTP methods to the correct controller functions
-router.post('/', ticketController.createTicket);
-router.get('/', ticketController.getAllTickets);
-
-// NEW: When a PUT request hits /api/tickets/ID/resolve, run the resolve function
-router.put('/:id/resolve', ticketController.resolveTicket);
+router.post('/', authorize('customer'), ticketController.createTicket);
+router.get('/:id', ticketController.getTicketById);
+router.patch('/:id/status', staffOnly, ticketController.updateStatus);
+router.patch('/:id/assign', staffOnly, ticketController.assignTicket);
+router.post('/:id/comments', ticketController.addComment);
 
 module.exports = router;
